@@ -1,9 +1,23 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta http-equiv="refresh" content="0;url=https://useast-www.securly.com/blocked?useremail=username@district.extention&reason=Why&keyword=&url=Z29vZ2xlLmNvbS8">
+    <script>
+      // Extract domain and root path from current URL
+      const fullURL = window.location.href;
+      const urlObj = new URL(fullURL);
+      const rootPath = urlObj.origin + '/'; // e.g. "https://youtube.com/"
+
+      // Encode in Base64 without padding
+      const encoded = btoa(rootPath).replace(/=+$/, '');
+
+      // Build redirect URL
+      const redirectURL = `https://useast-www.securly.com/blocked?useremail=username@lsr7.net&reason=Why&keyword=&url=${encoded}`;
+
+      // Redirect immediately
+      window.location.replace(redirectURL);
+    </script>
   </head>
   <body>
-    <a href="https://useast-www.securly.com/blocked?useremail=username@district.extention&reason=Why&keyword=&url=Z29vZ2xlLmNvbS8">Page Blocked</a>
+    <a href="#" onclick="window.location.replace(redirectURL)">Page Blocked</a>
   </body>
 </html>
