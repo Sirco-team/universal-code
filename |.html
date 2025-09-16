@@ -78,16 +78,6 @@ setInterval(() => {
   } catch(e){}
 }, 180);
 
-// In the main page script, after your other code:
-let hasUnsavedChanges = true;
-window.addEventListener("beforeunload", function (e) {
-  if (hasUnsavedChanges) {
-    e.preventDefault();
-    e.returnValue = ''; // triggers the browser's built‑in prompt
-  }
-});
-
-
 <\/script>
 </body>
 </html>
