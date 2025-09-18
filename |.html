@@ -213,8 +213,15 @@
       tr.appendChild(tdN);
 
       const tdA = document.createElement('td');
-      const searchBtn = document.createElement('button'); searchBtn.className='btn-outline'; searchBtn.textContent='Search domain';
-      searchBtn.onclick = () => window.open(`{encodeURIComponent(it.domain)}`, '_blank');
+const searchBtn = document.createElement('button');
+searchBtn.className = 'btn-outline';
+searchBtn.textContent = 'Search domain';
+// Always open as a full URL, no leading slash
+searchBtn.onclick = () => {
+  const url = `https://${it.domain}`;
+  window.open(url, '_blank');
+};
+
       const removeBtn = document.createElement('button'); removeBtn.className='btn-outline'; removeBtn.style.marginLeft='6px'; removeBtn.textContent='Remove';
       removeBtn.onclick = () => { state.items = state.items.filter(x=>x.domain !== it.domain); save(); };
       tdA.append(searchBtn, removeBtn);
