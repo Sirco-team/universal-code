@@ -74,11 +74,10 @@
           <label for="resultsHTML">Paste results HTML (View Source → copy all)</label>
           <textarea id="resultsHTML" class="mono" placeholder="Paste full HTML source of a results page, then click Extract"></textarea>
           <div class="toolbar">
-            <input id="htmlTag" class="pill mono" placeholder="Tag for this paste (e.g., unblocked games)" />
+            <input id="htmlTag" class="pill mono" placeholder="Tag for this paste" />
             <button id="extractHTML">Extract</button>
             <button id="clearHTML" class="btn-outline">Clear</button>
           </div>
-          <p class="muted">Direct fetch may be limited by CORS. Paste mode is instant and safe.</p>
         </div>
       </div>
       <div>
@@ -98,6 +97,16 @@
           </label>
         </div>
       </div>
+    </div>
+
+    <!-- New Google URL multi-page fetch section -->
+    <div style="margin-top:14px; padding:10px; border:1px solid var(--border); border-radius:8px;">
+      <label for="googleUrl">Google Search URL (auto‑fetch all pages via corsproxy.io)</label>
+      <div class="toolbar" style="margin-top:6px;">
+        <input id="googleUrl" class="mono" placeholder="https://www.google.com/search?q=unblocked+games" style="flex:1;" />
+        <button id="fetchGoogleMulti">Fetch All Pages</button>
+      </div>
+      <p class="muted" id="googleLog"></p>
     </div>
 
     <div class="table" style="margin-top:14px;">
@@ -135,18 +144,15 @@
   function normalizeHost(href){
     if(!href) return null;
     try{
-      // Handle DDG redirect links /l/?uddg=...
       const u = new URL(href, 'https://duckduckgo.com');
       if(u.hostname === 'duckduckgo.com' && u.pathname.startsWith('/l/')){
         const t = u.searchParams.get('uddg');
         if(t) return normalizeHost(decodeURIComponent(t));
       }
-      // Handle Google redirect links /url?q=...
-      if ((u.hostname.endsWith('google.com') || u.hostname.endsWith('google.it') || u.hostname.endsWith('google.co.uk')) && u.pathname === '/url') {
+      if ((u.hostname.endsWith('google.com') || u.hostname.endsWith('google.co.uk')) && u.pathname === '/url') {
         const q = u.searchParams.get('q');
         if(q) return normalizeHost(q);
       }
-      // Strip www.
       const host = u.hostname.toLowerCase().replace(/^www\./,'');
       return host || null;
     }catch{ return null }
@@ -165,7 +171,7 @@
     'browser vpn proxy',
     'game mirror site'
   ];
-  $('#loadPresets').addEventListener('click', ()=> { $('#queries').value = PRESETS.join('\\n'); });
+  $('#loadPresets').addEventListener('click', ()=> { $('#queries').value = PRESETS.join('\n'); });
   $('#clearQueries').addEventListener('click', ()=> { $('#queries').value=''; });
 
   // ---------- Rendering ----------
@@ -256,7 +262,7 @@
   async function fetchDDGHTML(query){
     const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
     const res = await fetch(url, {method:'GET', headers:{'Accept':'text/html'}});
-    const text = await res.text(); // may fail if CORS prevents reading
+    const text = await res.text();
     return text;
   }
 
@@ -264,9 +270,7 @@
   function extractFromGoogle(html){
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const anchors = [...doc.querySelectorAll('a[href]')];
-    // Capture both direct result links and /url?q= redirects
     const hosts = anchors.map(a => normalizeHost(a.getAttribute('href'))).filter(Boolean);
-    // Filter out common Google hostnames/services
     const blocked = new Set(['google.com','googleusercontent.com','gstatic.com','youtube.com','m.youtube.com','webcache.googleusercontent.com','support.google.com','policies.google.com','accounts.google.com']);
     return uniq(hosts.filter(h => !blocked.has(h)));
   }
@@ -278,9 +282,47 @@
     return badKeys.some(k => t.includes(k)) ? 'Likely non‑educational' : 'Needs review';
   }
 
-  // ---------- UI events ----------
+  // ---------- Google multi‑page fetch via corsproxy.io ----------
+  async function fetchHtmlViaProxy(url) {
+    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+    const resp = await fetch(proxyUrl);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.text();
+  }
+  function parseGoogleResults(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const anchors = Array.from(doc.querySelectorAll('div#search a'));
+    const hosts = anchors.map(a => normalizeHost(a.href)).filter(Boolean);
+    const nextEl = doc.querySelector('a#pnnext');
+    const nextUrl = nextEl ? nextEl.href : null;
+    return { hosts: uniq(hosts), nextUrl };
+  }
+  async function scrapeGoogleMulti(startUrl) {
+    const seenPages = new Set();
+    const allHosts = new Set();
+    let url = startUrl;
+    let pageCount = 0;
+    while (url && !seenPages.has(url)) {
+      seenPages.add(url);
+      $('#googleLog').textContent = `Fetching page ${pageCount+1}...`;
+      try {
+        const html = await fetchHtmlViaProxy(url);
+        const { hosts, nextUrl } = parseGoogle
+        const { hosts, nextUrl } = parseGoogleResults(html);
+        hosts.forEach(h => allHosts.add(h));
+        url = nextUrl;
+        pageCount++;
+      } catch (err) {
+        $('#googleLog').textContent = `Error: ${err.message}`;
+        break;
+      }
+    }
+    return Array.from(allHosts);
+  }
+
+  // ---------- Event bindings ----------
   $('#runDDG').addEventListener('click', async ()=>{
-    const terms = $('#queries').value.split('\\n').map(s=>s.trim()).filter(Boolean);
+    const terms = $('#queries').value.split('\n').map(s=>s.trim()).filter(Boolean);
     if(!terms.length){ alert('Add one or more queries.'); return; }
     let ok=0, fail=0;
     for(const term of terms){
@@ -297,20 +339,20 @@
   });
 
   $('#openDDGTabs').addEventListener('click', ()=>{
-    const terms = $('#queries').value.split('\\n').map(s=>s.trim()).filter(Boolean);
+    const terms = $('#queries').value.split('\n').map(s=>s.trim()).filter(Boolean);
     if(!terms.length){ alert('Add one or more queries.'); return; }
     terms.forEach(t => window.open(`https://duckduckgo.com/?q=${encodeURIComponent(t)}`,'_blank'));
   });
 
   $('#openGoogleTabs').addEventListener('click', ()=>{
-    const terms = $('#queries').value.split('\\n').map(s=>s.trim()).filter(Boolean);
+    const terms = $('#queries').value.split('\n').map(s=>s.trim()).filter(Boolean);
     if(!terms.length){ alert('Add one or more queries.'); return; }
     terms.forEach(t => window.open(`https://www.google.com/search?q=${encodeURIComponent(t)}`,'_blank'));
   });
 
   $('#extractHTML').addEventListener('click', ()=>{
     const html = $('#resultsHTML').value;
-    const engine = $('#engine').value; // ddg | google
+    const engine = $('#engine').value;
     const tag = ($('#htmlTag').value.trim() || engine);
     if(!html.trim()){ alert('Paste the HTML from a results page.'); return; }
     const auto = statusForQuery(tag);
@@ -343,6 +385,23 @@
     e.target.value = '';
   });
 
+  $('#fetchGoogleMulti').addEventListener('click', async () => {
+    const url = $('#googleUrl').value.trim();
+    if (!url) { alert('Paste a Google Search URL first.'); return; }
+    $('#googleLog').textContent = 'Starting multi‑page fetch...';
+    try {
+      const hosts = await scrapeGoogleMulti(url);
+      const tag = 'google:auto';
+      const autoStatus = statusForQuery(url);
+      hosts.forEach(h => upsertDomain(h, tag, autoStatus));
+      save();
+      $('#googleLog').textContent = `Done. Added ${hosts.length} unique domains from Google.`;
+    } catch (e) {
+      $('#googleLog').textContent = `Error: ${e.message}`;
+    }
+  });
+
+  // ---------- Export / Import helpers ----------
   function exportJSON(){
     download('candidates.json', JSON.stringify(state.items, null, 2));
   }
@@ -351,9 +410,9 @@
     const lines = [cols.join(',')].concat(
       state.items.map(x => cols.map(c => csvEscape(c==='foundBy' ? (x[c]||[]).join('; ') : (x[c]??''))).join(','))
     );
-    download('candidates.csv', lines.join('\\n'));
+    download('candidates.csv', lines.join('\n'));
   }
-  function csvEscape(s){ const t=String(s).replace(/"/g,'""').replace(/\\n/g,' '); return /[",\\n]/.test(t)?`"${t}"`:t }
+  function csvEscape(s){ const t=String(s).replace(/"/g,'""').replace(/\n/g,' '); return /[",\n]/.test(t)?`"${t}"`:t }
   function download(name, content){
     const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
     const url = URL.createObjectURL(blob);
@@ -388,7 +447,7 @@
     save();
   }
   function parseCSV(csv){
-    const lines = csv.split(/\\r?\\n/).filter(Boolean);
+    const lines = csv.split(/\r?\n/).filter(Boolean);
     const headers = lines.shift().split(',').map(h=>h.trim());
     return lines.map(line=>{
       const cells = splitCSV(line); const o={};
@@ -417,5 +476,3 @@
   // Initial render
   render();
 </script>
-</body>
-</html>
