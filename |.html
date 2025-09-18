@@ -1,127 +1,421 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Popup Chaos Fixed</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Candidate Finder — DDG + Google (Safe)</title>
 <style>
-  html,body { height:100%; margin:0; background:black; }
-  #overlay {
-    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
-    background:black; color:white; font-size:2rem; cursor:pointer;
-  }
+  :root { --bg:#0e1024; --panel:#15183a; --ink:#8aa1ff; --accent:#ffd166; --text:#e9ecff; --muted:#9aa3c7; --border:#232753; --input:#1b1f46; --ok:#2bdc96; --warn:#ffb703; --bad:#ff6b6b; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;background:radial-gradient(1200px 600px at 15% -10%, #1a1f49 0%, #0e1024 60%), var(--bg);color:var(--text)}
+  header{padding:18px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg, rgba(138,161,255,.07), rgba(0,0,0,0))}
+  h1{margin:0 0 6px;font-size:20px;letter-spacing:.2px}
+  p.sub{margin:0;color:var(--muted);font-size:13px}
+  .wrap{padding:16px;max-width:1150px;margin:0 auto}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
+  label{font-size:12px;color:var(--muted)}
+  input,select,textarea{width:100%;background:var(--input);color:var(--text);border:1px solid var(--border);padding:10px 12px;border-radius:10px;outline:none;font-size:14px}
+  textarea{min-height:60px;resize:vertical}
+  .row{display:grid;gap:12px}
+  .row.cols-3{grid-template-columns:1.2fr 2fr 1fr}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  button{background:var(--ink);color:#0b0e23;border:none;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer;transition:transform .05s}
+  button:hover{transform:translateY(-1px)}
+  .btn-outline{background:transparent;color:var(--text);border:1px solid var(--border)}
+  .btn-warn{background:var(--accent);color:#3a2a00}
+  .btn-good{background:var(--ok);color:#09261a}
+  .pill{border-radius:999px;padding:8px 10px;background:#1a1f3f;border:1px solid var(--border)}
+  .table{margin-top:16px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{text-align:left;font-size:12px;color:var(--muted);background:#14183a}
+  tbody tr:hover{background:rgba(138,161,255,.06)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .status{display:inline-flex;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;border:1px solid var(--border)}
+  .s-new{background:#272c54;color:#b7c1ff}
+  .s-ok{background:rgba(43,220,150,.12);color:#9af0c8;border-color:rgba(43,220,150,.35)}
+  .s-warn{background:rgba(255,183,3,.12);color:#ffd27f;border-color:rgba(255,183,3,.35)}
+  .muted{color:var(--muted);font-size:12px}
+  @media (max-width:960px){.row.cols-3{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<div id="overlay">Click to start chaos</div>
+<header>
+  <h1>Candidate Finder (Safe)</h1>
+  <p class="sub">Automate gathering domains from DuckDuckGo and Google results without visiting sites.</p>
+</header>
+
+<div class="wrap">
+  <div class="panel">
+    <div class="row cols-3">
+      <div>
+        <label for="queries">Queries</label>
+        <textarea id="queries" class="mono" placeholder="One per line"></textarea>
+        <div class="toolbar">
+          <button id="loadPresets" class="btn-outline">Load presets</button>
+          <button id="clearQueries" class="btn-outline">Clear</button>
+        </div>
+      </div>
+      <div>
+        <label>Fetch or paste results</label>
+        <div class="toolbar" style="margin-top:6px;">
+          <button id="runDDG">Fetch DuckDuckGo</button>
+          <button id="openDDGTabs" class="btn-outline">Open DDG tabs</button>
+          <button id="openGoogleTabs" class="btn-outline">Open Google tabs</button>
+        </div>
+        <div style="margin-top:10px;">
+          <label for="engine">Paste mode engine</label>
+          <select id="engine" class="pill">
+            <option value="ddg">DuckDuckGo</option>
+            <option value="google">Google</option>
+          </select>
+        </div>
+        <div style="margin-top:8px;">
+          <label for="resultsHTML">Paste results HTML (View Source → copy all)</label>
+          <textarea id="resultsHTML" class="mono" placeholder="Paste full HTML source of a results page, then click Extract"></textarea>
+          <div class="toolbar">
+            <input id="htmlTag" class="pill mono" placeholder="Tag for this paste (e.g., unblocked games)" />
+            <button id="extractHTML">Extract</button>
+            <button id="clearHTML" class="btn-outline">Clear</button>
+          </div>
+          <p class="muted">Direct fetch may be limited by CORS. Paste mode is instant and safe.</p>
+        </div>
+      </div>
+      <div>
+        <label for="filter">Filter list</label>
+        <input id="filter" placeholder="Search domains/notes/status" />
+        <div class="toolbar" style="margin-top:8px;">
+          <select id="statusFilter" class="pill">
+            <option value="">All statuses</option>
+            <option>Needs review</option>
+            <option>Likely non‑educational</option>
+            <option>Potentially educational</option>
+          </select>
+          <button id="exportCSV" class="btn-outline">Export CSV</button>
+          <button id="exportJSON" class="btn-outline">Export JSON</button>
+          <label class="btn-outline" style="padding:10px 14px;border-radius:10px;cursor:pointer;">Import
+            <input id="importFile" type="file" accept=".csv,.json" style="display:none;">
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="table" style="margin-top:14px;">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24%;">Domain</th>
+            <th>Found by queries</th>
+            <th style="width:160px;">Status</th>
+            <th>Notes</th>
+            <th style="width:220px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div class="muted" style="margin-top:8px;">
+      Local only • Doesn’t visit candidate sites • Use exports for IT review and blocking
+    </div>
+  </div>
+</div>
 
 <script>
-let chaosStarted = false;
-let popupWindows = [];
-let audioCtx = null;
+  // ---------- State & storage ----------
+  const storeKey = 'candidate-finder-safe-v2';
+  const state = { items: load(), filterText: '', filterStatus: '' };
+  function load(){ try{ return JSON.parse(localStorage.getItem(storeKey))||[] }catch{ return [] } }
+  function save(){ localStorage.setItem(storeKey, JSON.stringify(state.items)); render(); }
 
-// In the main page script, after your other code:
-let hasUnsavedChanges = true;
-window.addEventListener("beforeunload", function (e) {
-  if (hasUnsavedChanges) {
-    e.preventDefault();
-    e.returnValue = ''; // triggers the browser's built‑in prompt
-  }
-});
-
-
-// Main page effects
-function startMainEffects() {
-  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
-  setInterval(() => {
-    document.body.style.backgroundColor =
-      'hsl(' + Math.floor(Math.random()*360) + ',100%,50%)';
-  }, 120);
-  setInterval(() => {
-    if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'square';
-    osc.frequency.value = 300 + Math.random() * 900;
-    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.07);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.08);
-  }, 200);
-}
-
-// HTML for popup
-const popupContent = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Chaos</title>
-<style>html,body{margin:0;height:100%;}</style></head>
-<body>
-<script>
-setInterval(() => {
-  document.body.style.backgroundColor =
-    'hsl(' + Math.floor(Math.random()*360) + ',100%,50%)';
-}, 100);
-setInterval(() => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = 400 + Math.random()*800;
-    gain.gain.setValueAtTime(0.05, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.06);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.07);
-    osc.onended = () => ctx.close && ctx.close();
-  } catch(e){}
-}, 180);
-
-<\/script>
-</body>
-</html>
-`;
-
-// Spawn popup and inject immediately
-function spawnPopup() {
-  const width = 260, height = 180;
-  const w = window.open('', '_blank', `width=${width},height=${height},left=150,top=150`);
-  if (w) {
-    w.document.open();
-    w.document.write(popupContent);
-    w.document.close();
-    popupWindows.push(w);
-
-    // Move quickly
-    const moveInterval = setInterval(() => {
-      if (w.closed) {
-        clearInterval(moveInterval);
-        return;
+  // ---------- Utilities ----------
+  const $ = s => document.querySelector(s);
+  function uniq(a){ return [...new Set(a)] }
+  function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])) }
+  function normalizeHost(href){
+    if(!href) return null;
+    try{
+      // Handle DDG redirect links /l/?uddg=...
+      const u = new URL(href, 'https://duckduckgo.com');
+      if(u.hostname === 'duckduckgo.com' && u.pathname.startsWith('/l/')){
+        const t = u.searchParams.get('uddg');
+        if(t) return normalizeHost(decodeURIComponent(t));
       }
-      try {
-        const x = Math.floor(Math.random() * Math.max(1, screen.availWidth - width));
-        const y = Math.floor(Math.random() * Math.max(1, screen.availHeight - height));
-        w.moveTo(x, y);
-      } catch (err) {
-        clearInterval(moveInterval);
+      // Handle Google redirect links /url?q=...
+      if ((u.hostname.endsWith('google.com') || u.hostname.endsWith('google.it') || u.hostname.endsWith('google.co.uk')) && u.pathname === '/url') {
+        const q = u.searchParams.get('q');
+        if(q) return normalizeHost(q);
       }
-    }, 80);
+      // Strip www.
+      const host = u.hostname.toLowerCase().replace(/^www\./,'');
+      return host || null;
+    }catch{ return null }
   }
-}
 
-document.getElementById("overlay").addEventListener("click", () => {
-  if (chaosStarted) return;
-  chaosStarted = true;
-  document.getElementById("overlay").style.display = "none";
-  startMainEffects();
-  spawnPopup();
-  document.addEventListener("click", spawnPopup, { passive: true });
-});
+  // ---------- Preset queries ----------
+  const PRESETS = [
+    'unblocked games',
+    'unblocked games for school',
+    'html5 games unblocked',
+    'web proxy for school',
+    'free web proxy',
+    'bypass web filter games',
+    'online flash emulator',
+    'retro games online unblocked',
+    'browser vpn proxy',
+    'game mirror site'
+  ];
+  $('#loadPresets').addEventListener('click', ()=> { $('#queries').value = PRESETS.join('\\n'); });
+  $('#clearQueries').addEventListener('click', ()=> { $('#queries').value=''; });
 
-window.addEventListener("beforeunload", () => {
-  popupWindows.forEach(w => { try { w.close(); } catch(e){} });
-});
+  // ---------- Rendering ----------
+  function render(){
+    const rowsEl = $('#rows');
+    const q = state.filterText.trim().toLowerCase();
+    const fStatus = state.filterStatus;
+    const sorted = state.items.slice().sort((a,b)=> a.domain.localeCompare(b.domain));
+    const list = sorted.filter(it=>{
+      if(fStatus && it.status !== fStatus) return false;
+      if(!q) return true;
+      return [it.domain, it.notes, it.status, (it.foundBy||[]).join(' ')].some(s=> String(s).toLowerCase().includes(q));
+    });
+
+    rowsEl.innerHTML = '';
+    for(const it of list){
+      const tr = document.createElement('tr');
+
+      const tdD = document.createElement('td');
+      tdD.innerHTML = `<div class="mono">${it.domain}</div><div class="muted">Updated ${new Date(it.updatedAt).toLocaleString()}</div>`;
+      tr.appendChild(tdD);
+
+      const tdQ = document.createElement('td');
+      tdQ.innerHTML = (it.foundBy||[]).map(tag => `<span class="mono" style="display:inline-block;margin:2px 6px 2px 0;padding:3px 8px;border-radius:999px;background:#232751;border:1px solid var(--border);">${escapeHTML(tag)}</span>`).join('') || '<span class="muted">—</span>';
+      tr.appendChild(tdQ);
+
+      const tdS = document.createElement('td');
+      const badge = document.createElement('div');
+      badge.className = 'status ' + (it.status==='Likely non‑educational' ? 's-ok' : it.status==='Potentially educational' ? 's-warn' : 's-new');
+      badge.textContent = it.status; badge.style.marginBottom='8px';
+      const sel = document.createElement('select');
+      ['Needs review','Likely non‑educational','Potentially educational'].forEach(s=>{
+        const o = document.createElement('option'); o.value=s; o.textContent=s; if(s===it.status) o.selected=true; sel.appendChild(o);
+      });
+      sel.addEventListener('change', ()=> { it.status = sel.value; it.updatedAt = new Date().toISOString(); save(); });
+      tdS.append(badge, sel);
+      tr.appendChild(tdS);
+
+      const tdN = document.createElement('td');
+      const notes = document.createElement('textarea');
+      notes.value = it.notes || '';
+      notes.placeholder = 'Add context for admin review...';
+      notes.addEventListener('change', ()=> { it.notes = notes.value; it.updatedAt = new Date().toISOString(); save(); });
+      tdN.appendChild(notes);
+      tr.appendChild(tdN);
+
+      const tdA = document.createElement('td');
+      const searchBtn = document.createElement('button'); searchBtn.className='btn-outline'; searchBtn.textContent='Search domain';
+      searchBtn.onclick = () => window.open(`https://duckduckgo.com/?q=${encodeURIComponent(it.domain)}`, '_blank');
+      const removeBtn = document.createElement('button'); removeBtn.className='btn-outline'; removeBtn.style.marginLeft='6px'; removeBtn.textContent='Remove';
+      removeBtn.onclick = () => { state.items = state.items.filter(x=>x.domain !== it.domain); save(); };
+      tdA.append(searchBtn, removeBtn);
+      tr.appendChild(tdA);
+
+      rowsEl.appendChild(tr);
+    }
+  }
+
+  // ---------- Data ops ----------
+  function upsertDomain(domain, tag, autoStatus){
+    if(!domain) return;
+    const now = new Date().toISOString();
+    const idx = state.items.findIndex(x=>x.domain === domain);
+    if(idx >= 0){
+      const it = state.items[idx];
+      it.foundBy = uniq([...(it.foundBy||[]), tag].filter(Boolean));
+      if(autoStatus && it.status === 'Needs review') it.status = autoStatus;
+      it.updatedAt = now;
+    } else {
+      state.items.push({
+        domain,
+        foundBy: tag ? [tag] : [],
+        status: autoStatus || 'Needs review',
+        notes: '',
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+  }
+
+  // ---------- Extraction: DuckDuckGo ----------
+  function extractFromDDG(html){
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const anchors = [...doc.querySelectorAll('a[href]')];
+    const hosts = anchors.map(a => normalizeHost(a.getAttribute('href'))).filter(Boolean);
+    return uniq(hosts);
+  }
+  async function fetchDDGHTML(query){
+    const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, {method:'GET', headers:{'Accept':'text/html'}});
+    const text = await res.text(); // may fail if CORS prevents reading
+    return text;
+  }
+
+  // ---------- Extraction: Google ----------
+  function extractFromGoogle(html){
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const anchors = [...doc.querySelectorAll('a[href]')];
+    // Capture both direct result links and /url?q= redirects
+    const hosts = anchors.map(a => normalizeHost(a.getAttribute('href'))).filter(Boolean);
+    // Filter out common Google hostnames/services
+    const blocked = new Set(['google.com','googleusercontent.com','gstatic.com','youtube.com','m.youtube.com','webcache.googleusercontent.com','support.google.com','policies.google.com','accounts.google.com']);
+    return uniq(hosts.filter(h => !blocked.has(h)));
+  }
+
+  // ---------- Heuristic auto‑status ----------
+  function statusForQuery(tag){
+    const t = (tag||'').toLowerCase();
+    const badKeys = ['unblocked','proxy','vpn','bypass','games','mirror','emulator'];
+    return badKeys.some(k => t.includes(k)) ? 'Likely non‑educational' : 'Needs review';
+  }
+
+  // ---------- UI events ----------
+  $('#runDDG').addEventListener('click', async ()=>{
+    const terms = $('#queries').value.split('\\n').map(s=>s.trim()).filter(Boolean);
+    if(!terms.length){ alert('Add one or more queries.'); return; }
+    let ok=0, fail=0;
+    for(const term of terms){
+      try{
+        const html = await fetchDDGHTML(term);
+        const hosts = extractFromDDG(html);
+        const auto = statusForQuery(term);
+        hosts.forEach(h => upsertDomain(h, `ddg:${term}`, auto));
+        ok++;
+      }catch{ fail++; }
+    }
+    save();
+    if(fail) alert(`${ok} fetched, ${fail} blocked by CORS — use Open tabs + Paste mode for those.`);
+  });
+
+  $('#openDDGTabs').addEventListener('click', ()=>{
+    const terms = $('#queries').value.split('\\n').map(s=>s.trim()).filter(Boolean);
+    if(!terms.length){ alert('Add one or more queries.'); return; }
+    terms.forEach(t => window.open(`https://duckduckgo.com/?q=${encodeURIComponent(t)}`,'_blank'));
+  });
+
+  $('#openGoogleTabs').addEventListener('click', ()=>{
+    const terms = $('#queries').value.split('\\n').map(s=>s.trim()).filter(Boolean);
+    if(!terms.length){ alert('Add one or more queries.'); return; }
+    terms.forEach(t => window.open(`https://www.google.com/search?q=${encodeURIComponent(t)}`,'_blank'));
+  });
+
+  $('#extractHTML').addEventListener('click', ()=>{
+    const html = $('#resultsHTML').value;
+    const engine = $('#engine').value; // ddg | google
+    const tag = ($('#htmlTag').value.trim() || engine);
+    if(!html.trim()){ alert('Paste the HTML from a results page.'); return; }
+    const auto = statusForQuery(tag);
+    const hosts = engine === 'google' ? extractFromGoogle(html) : extractFromDDG(html);
+    hosts.forEach(h => upsertDomain(h, `${engine}:${tag}`, auto));
+    save();
+    alert(`Extracted ${hosts.length} unique domains from ${engine}.`);
+  });
+
+  $('#clearHTML').addEventListener('click', ()=> { $('#resultsHTML').value=''; $('#htmlTag').value=''; });
+
+  $('#filter').addEventListener('input', ()=> { state.filterText = $('#filter').value; render(); });
+  $('#statusFilter').addEventListener('change', ()=> { state.filterStatus = $('#statusFilter').value; render(); });
+
+  $('#exportCSV').addEventListener('click', exportCSV);
+  $('#exportJSON').addEventListener('click', exportJSON);
+  $('#importFile').addEventListener('change', e=>{
+    const f = e.target.files?.[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = ()=> {
+      try{
+        if(f.name.endsWith('.json')){
+          mergeItems(JSON.parse(r.result));
+        } else {
+          mergeItems(parseCSV(r.result));
+        }
+      } catch { alert('Import failed. Ensure valid JSON or CSV.'); }
+    };
+    r.readAsText(f);
+    e.target.value = '';
+  });
+
+  function exportJSON(){
+    download('candidates.json', JSON.stringify(state.items, null, 2));
+  }
+  function exportCSV(){
+    const cols = ['domain','status','foundBy','notes','createdAt','updatedAt'];
+    const lines = [cols.join(',')].concat(
+      state.items.map(x => cols.map(c => csvEscape(c==='foundBy' ? (x[c]||[]).join('; ') : (x[c]??''))).join(','))
+    );
+    download('candidates.csv', lines.join('\\n'));
+  }
+  function csvEscape(s){ const t=String(s).replace(/"/g,'""').replace(/\\n/g,' '); return /[",\\n]/.test(t)?`"${t}"`:t }
+  function download(name, content){
+    const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=name; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 800);
+  }
+  function mergeItems(arr){
+    const map = new Map(state.items.map(x=>[x.domain,x]));
+    for(const it of arr){
+      if(!it || !it.domain) continue;
+      if(map.has(it.domain)){
+        const prev = map.get(it.domain);
+        map.set(it.domain, {
+          ...prev,
+          status: it.status || prev.status,
+          notes: it.notes || prev.notes,
+          foundBy: uniq([...(prev.foundBy||[]), ...((it.foundBy||[]))]),
+          updatedAt: new Date().toISOString()
+        });
+      } else {
+        map.set(it.domain, {
+          domain: it.domain,
+          status: it.status || 'Needs review',
+          notes: it.notes || '',
+          foundBy: uniq(it.foundBy||[]),
+          createdAt: it.createdAt || new Date().toISOString(),
+          updatedAt: it.updatedAt || new Date().toISOString()
+        });
+      }
+    }
+    state.items = Array.from(map.values());
+    save();
+  }
+  function parseCSV(csv){
+    const lines = csv.split(/\\r?\\n/).filter(Boolean);
+    const headers = lines.shift().split(',').map(h=>h.trim());
+    return lines.map(line=>{
+      const cells = splitCSV(line); const o={};
+      headers.forEach((h,i)=>o[h]=cells[i]??'');
+      return {
+        domain:(o.domain||'').trim(),
+        status:o.status||'Needs review',
+        notes:o.notes||'',
+        foundBy:(o.foundBy||'').split(';').map(s=>s.trim()).filter(Boolean),
+        createdAt:o.createdAt||new Date().toISOString(),
+        updatedAt:o.updatedAt||new Date().toISOString()
+      };
+    });
+  }
+  function splitCSV(line){
+    const out=[]; let cur=''; let inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch === '"'){ if(inQ && line[i+1]==='"'){ cur+='"'; i++; } else inQ=!inQ; }
+      else if(ch===',' && !inQ){ out.push(cur); cur=''; }
+      else cur+=ch;
+    }
+    out.push(cur); return out;
+  }
+
+  // Initial render
+  render();
 </script>
 </body>
 </html>
